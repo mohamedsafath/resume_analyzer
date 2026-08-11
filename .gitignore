@@ -1,0 +1,51 @@
+# Python & Environment
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Datasets & Resumes Data
+*.csv
+*.xlsx
+*.xls
+*.json.log
+data/
+datasets/
+raw_resumes/
+resumes_dataset/
+uploads/
+
+# Presentations & Documents
+*.ppt
+*.pptx
+*.doc
+*.docx
+*.key
+
+# Jupyter Notebooks
+*.ipynb
+.ipynb_checkpoints/
+
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+
+# Archives & OS
+*.zip
+*.tar
+*.gz
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Duplicate / backup files
+main 5.27.34*.py
+
+# Logs
+*.log

@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Analyzer</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='index.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="brand">
+                <i class="fas fa-brain logo-icon"></i>
+                <h2>Resume Analyzer</h2>
+            </div>
+            <nav class="nav-menu">
+                <ul>
+                    <li class="active" id="nav-upload"><a href="#" onclick="showSection('upload')"><i class="fas fa-upload"></i> <span>Analyze Resumes</span></a></li>
+                    <li id="nav-results" style="display: none;"><a href="#" onclick="showSection('results')"><i class="fas fa-chart-line"></i> <span>Latest Results</span></a></li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <p>v3.0 • High Scalability</p>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar">
+                <div class="user-profile">
+                    <span class="welcome-text">Enterprise Talent Hub</span>
+                </div>
+            </header>
+
+            <div class="content-wrapper">
+                <!-- Section 1: Upload Form -->
+                <section id="section-upload" class="app-section">
+                    <div class="header-section">
+                        <h1><i class="fas fa-sliders-h"></i> Resume Analyzer</h1>
+                        <p class="subtitle">Upload candidate resumes, predict categories, and evaluate compatibility scores instantly using local ML classification models and TF-IDF similarity vectors.</p>
+                    </div>
+
+                    <div class="glass-card">
+                        <form id="analyze-form" onsubmit="submitForm(event)">
+
+                            <!-- Category Select Dropdown (Auto-fills Text Area) -->
+                            <div class="form-row" style="margin-bottom: 20px;">
+                                <div class="dropdown-container">
+                                    <label for="category_select"><i class="fas fa-briefcase"></i> Select Job Category <span class="badge-optional">(Auto-populates target keywords below)</span></label>
+                                    <div class="select-wrapper">
+                                        <select id="category_select" onchange="autoFillJobDescription()">
+                                            <option value="" disabled selected>Choose a category...</option>
+                                            {% for category in job_categories %}
+                                                <option value="{{ category }}">{{ category }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <i class="fas fa-chevron-down select-arrow"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Target Job Description -->
+                            <div class="form-row">
+                                <div class="dropdown-container">
+                                    <label for="job_description"><i class="fas fa-briefcase"></i> Target Job Description / Keywords</label>
+                                    <textarea id="job_description" name="job_description" placeholder="Paste the job description or target requirements here (e.g. Senior Data Scientist with 3+ years experience in Python and PyTorch)..." required></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Drop Zone -->
+                            <div class="file-upload" id="drop-area">
+                                <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                                <h3>Drag & Drop Resumes here</h3>
+                                <p>or click to browse your files</p>
+                                <span class="file-type-hint">Supports text-based PDF resumes</span>
+                                <input type="file" id="resumes" name="resumes" accept=".pdf" multiple required>
+                            </div>
+
+                            <!-- Selected Files List -->
+                            <div id="file-list-container" class="file-list-container" style="display: none;">
+                                <h4>Selected Resumes (<span id="file-count">0</span>)</h4>
+                                <ul id="file-list" class="file-list"></ul>
+                            </div>
+
+                            <button type="submit" class="submit-btn" id="submit-btn">
+                                <i class="fas fa-chart-line"></i> Run Deep Analysis
+                            </button>
+                        </form>
+                    </div>
+                </section>
+
+                <!-- Section 2: Results Display (SPA dynamic) -->
+                <section id="section-results" class="app-section" style="display: none;">
+                    <div class="header-section">
+                        <h1><i class="fas fa-list-ol"></i> Matching & Ranking Dashboard</h1>
+                        <p class="subtitle">Rankings based on semantic compatibility scores and grammar heuristics.</p>
+                    </div>
+
+                    <div class="results-layout">
+                        <!-- Left sidebar results summary card -->
+                        <div class="results-left">
+                            <div class="summary-card glass-panel">
+                                <i class="fas fa-award summary-icon"></i>
+                                <h2>Analysis Complete</h2>
+                                <p class="target-title">Target Job Description</p>
+                                <div class="jd-preview" id="jd-preview-text">Target Job Profile...</div>
+                                
+                                <div class="stats-box">
+                                    <div class="stat-item">
+                                        <span class="stat-num" id="matches-count">0</span>
+                                        <span class="stat-lbl">Matched Resumes</span>
+                                    </div>
+                                </div>
+
+                                <button onclick="showSection('upload')" class="upload-more-btn"><i class="fas fa-arrow-left"></i> Analyze More Resumes</button>
+                            </div>
+                        </div>
+
+                        <!-- Right list results table -->
+                        <div class="results-right">
+                            <!-- Matched Resumes Table -->
+                            <div class="table-container" id="matched-table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Rank</th>
+                                            <th>Candidate Info</th>
+                                            <th>Socials & Contact</th>
+                                            <th>Quality Score</th>
+                                            <th>Similarity Match</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="matched-table-body">
+                                        <!-- Dynamic entries -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Fallback Grouped list -->
+                            <div id="fallback-group-container" style="display: none;">
+                                <div class="no-results-header">
+                                    <i class="fas fa-exclamation-triangle warning-icon"></i>
+                                    <h2>No Exact Matches Found</h2>
+                                    <p>None of your uploaded resumes matched the classification thresholds. Here is how they classified by category:</p>
+                                </div>
+                                <div class="detected-section" id="fallback-categories-list">
+                                    <!-- Dynamic categories -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="loading" class="loading-overlay" style="display: none;">
+                <div class="spinner-container">
+                    <div class="pulse-ring"></div>
+                    <i class="fas fa-cog fa-spin loading-icon"></i>
+                </div>
+                <h3>Processing Resumes...</h3>
+                <p id="loading-status-text">Preparing batch upload and queuing the analysis task on the server...</p>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const JOB_KEYWORDS = {{ job_keywords|tojson | safe }};
+        
+        function autoFillJobDescription() {
+            const select = document.getElementById('category_select');
+            const textarea = document.getElementById('job_description');
+            const category = select.value;
+            if (category && JOB_KEYWORDS[category]) {
+                const keywords = JOB_KEYWORDS[category].join(', ');
+                textarea.value = `${category}: ${keywords}`;
+            }
+        }
+
+        const dropArea = document.getElementById('drop-area');
+        const input = document.getElementById('resumes');
+        const fileListContainer = document.getElementById('file-list-container');
+        const fileList = document.getElementById('file-list');
+        const fileCountDisplay = document.getElementById('file-count');
+
+        // Drag and drop handlers
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropArea.classList.add('active');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropArea.classList.remove('active');
+            }, false);
+        });
+
+        dropArea.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            input.files = files;
+            updateFileList();
+        }, false);
+
+        // Click to upload trigger
+        dropArea.addEventListener('click', () => {
+            input.click();
+        });
+
+        input.addEventListener('change', updateFileList);
+
+        function updateFileList() {
+            fileList.innerHTML = '';
+            const files = input.files;
+            const count = files.length;
+            
+            if (count > 0) {
+                fileListContainer.style.display = 'block';
+                fileCountDisplay.textContent = count;
+                
+                Array.from(files).forEach(file => {
+                    const li = document.createElement('li');
+                    const sizeKB = (file.size / 1024).toFixed(1);
+                    li.innerHTML = `
+                        <span class="file-name"><i class="far fa-file-pdf"></i> ${file.name}</span>
+                        <span class="file-size">${sizeKB} KB</span>
+                    `;
+                    fileList.appendChild(li);
+                });
+            } else {
+                fileListContainer.style.display = 'none';
+            }
+        }
+
+        function togglePasswordVisibility() {
+            const pwd = document.getElementById('api_key');
+            const eye = document.getElementById('password-eye');
+            if (pwd.type === 'password') {
+                pwd.type = 'text';
+                eye.classList.remove('fa-eye');
+                eye.classList.add('fa-eye-slash');
+            } else {
+                pwd.type = 'password';
+                eye.classList.remove('fa-eye-slash');
+                eye.classList.add('fa-eye');
+            }
+        }
+
+        function showSection(section) {
+            document.getElementById('section-upload').style.display = section === 'upload' ? 'block' : 'none';
+            document.getElementById('section-results').style.display = section === 'results' ? 'block' : 'none';
+            
+            document.getElementById('nav-upload').classList.toggle('active', section === 'upload');
+            document.getElementById('nav-results').classList.toggle('active', section === 'results');
+        }
+
+        async function submitForm(e) {
+            e.preventDefault();
+            
+            if (input.files.length === 0) {
+                alert('Please upload at least one PDF resume.');
+                return;
+            }
+
+            const statusText = document.getElementById('loading-status-text');
+            document.getElementById('loading').style.display = 'flex';
+
+            const files = Array.from(input.files);
+            const totalFiles = files.length;
+            const batchSize = 100;
+            const uploadedFilenames = [];
+
+            try {
+                // 1. Upload files in batches sequentially to prevent server memory/network hangs
+                for (let i = 0; i < totalFiles; i += batchSize) {
+                    const batch = files.slice(i, i + batchSize);
+                    const formData = new FormData();
+                    batch.forEach(file => {
+                        formData.append('resumes', file);
+                    });
+
+                    // Update UI status text during upload
+                    const pct = Math.round((i / totalFiles) * 100);
+                    statusText.innerText = `Uploading Resumes... ${i} / ${totalFiles} (${pct}% uploaded)`;
+
+                    const uploadResponse = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!uploadResponse.ok) {
+                        const uploadErr = await uploadResponse.text();
+                        throw new Error(`Upload batch failed (${uploadResponse.status}): ${uploadErr}`);
+                    }
+
+                    const uploadResult = await uploadResponse.json();
+                    if (uploadResult.uploaded) {
+                        uploadedFilenames.push(...uploadResult.uploaded);
+                    }
+                }
+
+                // Final upload update
+                statusText.innerText = `Uploading Resumes... ${totalFiles} / ${totalFiles} (100% uploaded). Triggering analysis...`;
+
+                // 2. Trigger the analysis asynchronously using the list of uploaded filenames
+                const analyzeResponse = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        job_description: document.getElementById('job_description').value,
+                        category: document.getElementById('category_select').value,
+                        filenames: uploadedFilenames
+                    })
+                });
+
+                if (!analyzeResponse.ok) {
+                    const analyzeErr = await analyzeResponse.text();
+                    throw new Error(`Failed to queue analysis (${analyzeResponse.status}): ${analyzeErr}`);
+                }
+
+                const initialData = await analyzeResponse.json();
+                if (initialData.error) {
+                    throw new Error(initialData.error);
+                }
+
+                const jobId = initialData.job_id;
+
+                // 3. Poll status from the backend
+                const pollStatus = async () => {
+                    try {
+                        const statusResponse = await fetch(`/api/status/${jobId}`);
+                        if (!statusResponse.ok) {
+                            throw new Error(`Failed to check processing status.`);
+                        }
+                        const statusData = await statusResponse.json();
+
+                        if (statusData.status === 'completed') {
+                            renderResults(statusData.results);
+                            // Show results section
+                            document.getElementById('nav-results').style.display = 'block';
+                            showSection('results');
+                            document.getElementById('loading').style.display = 'none';
+                        } else if (statusData.status === 'failed') {
+                            throw new Error(`Analysis failed: ${statusData.error}`);
+                        } else if (statusData.status === 'processing') {
+                            const pct = Math.round((statusData.progress / statusData.total) * 100) || 0;
+                            statusText.innerText = `Processing Resumes... ${statusData.progress} / ${statusData.total} (${pct}% completed)`;
+                            setTimeout(pollStatus, 1500);
+                        } else {
+                            throw new Error(`Unknown job status received.`);
+                        }
+                    } catch (pollErr) {
+                        alert('An error occurred during status updates: ' + pollErr.message);
+                        document.getElementById('loading').style.display = 'none';
+                    }
+                };
+
+                // Start polling after 1 second
+                setTimeout(pollStatus, 1000);
+
+            } catch (err) {
+                alert('An error occurred during resume processing: ' + err.message);
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function renderResults(data) {
+            // Update Summary Card
+            document.getElementById('jd-preview-text').textContent = data.job_description;
+            document.getElementById('matches-count').innerHTML = `${data.total_matches} <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: 500; display: block; margin-top: 4px;">out of ${data.resumes.length}</span>`;
+            
+            const matchedContainer = document.getElementById('matched-table-container');
+            const matchedBody = document.getElementById('matched-table-body');
+            const fallbackContainer = document.getElementById('fallback-group-container');
+            const fallbackList = document.getElementById('fallback-categories-list');
+
+            // Reset views
+            matchedBody.innerHTML = '';
+            fallbackList.innerHTML = '';
+
+            // Filter to keep only matching resumes
+            const matchedResumes = data.resumes.filter(r => r.is_match);
+
+            if (data.total_matches > 0 && matchedResumes.length > 0) {
+                // Show Table, Hide Fallback Groups
+                matchedContainer.style.display = 'block';
+                fallbackContainer.style.display = 'none';
+
+                matchedResumes.forEach((resume, index) => {
+                    const rankClass = index === 0 ? 'first' : index === 1 ? 'second' : index === 2 ? 'third' : '';
+                    const qualityClass = getQualityClass(resume.quality_rating);
+                    const stars = getStars(resume.quality_rating);
+                    
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td><div class="rank-badge ${rankClass}">${index + 1}</div></td>
+                        <td>
+                            <div class="candidate-block">
+                                <span class="candidate-name">${resume.name !== 'N/A' ? resume.name : resume.filename.split('.')[0]}</span>
+                                <a href="/uploads/${resume.filename}" target="_blank" class="candidate-filename" style="color: var(--primary-color); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; transition: opacity 0.2s;" onmouseover="this.style.opacity=0.8" onmouseout="this.style.opacity=1"><i class="far fa-file-pdf"></i> ${resume.filename}</a>
+                                <span class="candidate-role"><i class="fas fa-tags"></i> ${resume.predicted_category}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="contact-links">
+                                ${resume.email !== 'N/A' ? `<a href="mailto:${resume.email}" class="contact-btn email" title="${resume.email}"><i class="fas fa-envelope"></i> Email</a>` : `<span class="no-contact"><i class="fas fa-envelope-slash"></i> No Email</span>`}
+                                ${resume.linkedin !== 'N/A' ? `<a href="${resume.linkedin}" target="_blank" class="linkedin-button"><i class="fab fa-linkedin"></i> LinkedIn</a>` : `<span class="no-contact"><i class="fab fa-linkedin"></i> No Profile</span>`}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="quality-badge-wrapper">
+                                <span class="quality-tag ${qualityClass}">${resume.quality_rating.replace(/⭐/g, '').trim()}</span>
+                                <div class="stars-row"><span class="stars">${stars}</span></div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="semantic-match-container">
+                                <div class="progress-info">
+                                    <span class="percentage-text highlight-percentage">${resume.match_score}%</span>
+                                </div>
+                                <div class="progress-bar-bg">
+                                    <div class="progress-bar-fill" style="width: ${resume.match_score}%;"></div>
+                                </div>
+                                <span class="reason-tooltip" title="${resume.reasoning}">${resume.reasoning}</span>
+                            </div>
+                        </td>
+                    `;
+                    matchedBody.appendChild(tr);
+                });
+            } else {
+                // Hide Table, Show fallback category groupings (containing all resumes grouped by their category)
+                matchedContainer.style.display = 'none';
+                fallbackContainer.style.display = 'block';
+
+                for (const [cat, resumes] of Object.entries(data.resumes_by_category)) {
+                    const groupDiv = document.createElement('div');
+                    groupDiv.className = 'category-group';
+                    
+                    const header = document.createElement('div');
+                    header.className = 'category-header';
+                    header.innerHTML = `
+                        <span class="category-title"><i class="fas fa-tags"></i> ${cat}</span>
+                        <span class="category-count">${resumes.length} Resume(s)</span>
+                    `;
+                    groupDiv.appendChild(header);
+
+                    const resumesDiv = document.createElement('div');
+                    resumesDiv.className = 'category-resumes';
+
+                    resumes.forEach(resume => {
+                        const qualityClass = getQualityClass(resume.quality_rating);
+                        const card = document.createElement('div');
+                        card.className = 'resume-card-horizontal';
+                        card.innerHTML = `
+                            <div class="resume-card-left">
+                                <div class="resume-card-title-row">
+                                    <span class="resume-card-name">${resume.name !== 'N/A' ? resume.name : resume.filename.split('.')[0]}</span>
+                                    <span class="resume-card-file"><i class="far fa-file-pdf"></i> ${resume.filename}</span>
+                                </div>
+                                <div class="resume-card-stats-row">
+                                    <div class="card-stat">
+                                        <span class="stat-lbl">Compatibility:</span>
+                                        <span class="stat-val highlight-val">${resume.match_score}%</span>
+                                    </div>
+                                </div>
+                                <p class="card-reasoning">"${resume.reasoning}"</p>
+                            </div>
+                            <div class="resume-card-right">
+                                <div class="quality-badge-wrapper">
+                                    <span class="quality-tag ${qualityClass}">${resume.quality_rating.replace(/⭐/g, '').trim()}</span>
+                                </div>
+                                <div class="contact-links horizontal">
+                                    ${resume.email !== 'N/A' ? `<a href="mailto:${resume.email}" class="email-icon-only" title="Email: ${resume.email}"><i class="fas fa-envelope"></i></a>` : ''}
+                                    ${resume.linkedin !== 'N/A' ? `<a href="${resume.linkedin}" target="_blank" class="linkedin-icon-only" title="LinkedIn Profile"><i class="fab fa-linkedin"></i></a>` : ''}
+                                </div>
+                            </div>
+                        `;
+                        resumesDiv.appendChild(card);
+                    });
+
+                    groupDiv.appendChild(resumesDiv);
+                    fallbackList.appendChild(groupDiv);
+                }
+            }
+        }
+
+        function getQualityClass(rating) {
+            if (rating.includes('Outstanding')) return 'outstanding';
+            if (rating.includes('Good')) return 'good';
+            if (rating.includes('Decent') || rating.includes('Medium')) return 'decent';
+            return 'poor';
+        }
+
+        function getStars(rating) {
+            if (rating.includes('Outstanding')) return '⭐⭐⭐⭐⭐';
+            if (rating.includes('Good')) return '⭐⭐⭐⭐';
+            if (rating.includes('Decent') || rating.includes('Medium')) return '⭐⭐⭐';
+            return '⭐';
+        }
+    </script>
+</body>
+</html>
